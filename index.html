@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAV-SHIELD — GNSS-Denied Navigation Prototype</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NAV-SHIELD">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0B1626;
+  --panel:#12233A;
+  --panel-2:#0F1D30;
+  --border:#22354E;
+  --text:#E9EFF6;
+  --text-dim:#8CA2BE;
+  --text-faint:#5B7290;
+  --cyan:#4FD8CB;
+  --cyan-dim:#2A6E68;
+  --amber:#F2A93B;
+  --amber-dim:#7A5A20;
+  --red:#EB6353;
+  --road:#33465F;
+  --road-edge:#57738F;
+  --tunnel:#050B14;
+  --grid: rgba(255,255,255,0.035);
+  --font-display:'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+*{box-sizing:border-box;}
+html,body{
+  margin:0; padding:0; background:radial-gradient(120% 140% at 15% -10%, #142944 0%, var(--bg) 55%);
+  color:var(--text); font-family:var(--font-mono); min-height:100vh;
+}
+.wrap{ max-width:1240px; margin:0 auto; padding:22px 20px 40px; }
+
+/* ---------- Header ---------- */
+header{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:20px; padding-bottom:18px; border-bottom:1px solid var(--border); }
+.brand{ display:flex; align-items:center; gap:12px; }
+.brand svg{ width:38px; height:38px; flex:none; }
+.brand h1{ font-family:var(--font-display); font-size:26px; font-weight:700; letter-spacing:0.5px; margin:0; color:var(--text); }
+.brand h1 span{ color:var(--cyan); }
+.tagline{ font-family:var(--font-display); font-size:13px; color:var(--text-dim); font-style:italic; margin-top:2px; }
+.subtitle{ max-width:460px; font-size:12px; line-height:1.55; color:var(--text-faint); }
+
+/* ---------- Layout ---------- */
+main{ display:grid; grid-template-columns: 1.62fr 1fr; gap:16px; }
+@media (max-width: 900px){ main{ grid-template-columns: 1fr; } }
+
+.card{ background:linear-gradient(180deg, var(--panel), var(--panel-2)); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.card-head{ display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--border); }
+.card-head .dot{ width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 8px var(--cyan); }
+.card-head h2{ font-family:var(--font-display); font-size:12.5px; font-weight:600; letter-spacing:0.3px; margin:0; color:var(--text); }
+.card-body{ padding:14px; }
+
+/* ---------- Stage ---------- */
+.stage-wrap{ position:relative; width:100%; aspect-ratio: 5 / 3; background:#081120; }
+.stage-wrap canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.status-strip{ display:flex; flex-wrap:wrap; gap:10px; padding:12px 14px; border-top:1px solid var(--border); background:var(--panel-2); }
+.status-chip{ flex:1; min-width:120px; background:#0C1A2C; border:1px solid var(--border); border-radius:7px; padding:8px 10px; }
+.status-chip .label{ font-size:9.5px; color:var(--text-faint); letter-spacing:0.4px; }
+.status-chip .value{ font-family:var(--font-mono); font-size:15px; font-weight:600; margin-top:2px; color:var(--text); }
+.status-chip .value.mode-gps{ color:var(--cyan); }
+.status-chip .value.mode-dr{ color:var(--amber); }
+
+.hint{ font-size:10.5px; color:var(--text-faint); padding:0 14px 12px; line-height:1.5; }
+
+/* ---------- Trust bars ---------- */
+.trust-row{ margin-bottom:12px; }
+.trust-row:last-child{ margin-bottom:0; }
+.trust-row .trow-top{ display:flex; justify-content:space-between; font-size:11px; margin-bottom:5px; }
+.trust-row .trow-top .name{ color:var(--text-dim); }
+.trust-row .trow-top .pct{ color:var(--text); font-weight:600; }
+.trust-track{ height:7px; border-radius:4px; background:#0A1626; border:1px solid var(--border); overflow:hidden; }
+.trust-fill{ height:100%; border-radius:4px; transition:width 0.25s ease, background 0.4s ease; }
+
+/* ---------- Sensors ---------- */
+.sensor-block{ margin-bottom:14px; }
+.sensor-block:last-child{ margin-bottom:0; }
+.sensor-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+.sensor-top .name{ font-size:11px; color:var(--text-dim); }
+.sensor-top .val{ font-size:13px; font-weight:600; color:var(--text); }
+.spark{ width:100%; height:34px; display:block; background:#0A1626; border:1px solid var(--border); border-radius:5px; }
+
+/* ---------- Log ---------- */
+.log-list{ list-style:none; margin:0; padding:0; max-height:190px; overflow-y:auto; font-size:11px; }
+.log-list li{ padding:6px 0; border-bottom:1px dashed var(--border); color:var(--text-dim); line-height:1.5; }
+.log-list li:last-child{ border-bottom:none; }
+.log-list li .t{ color:var(--text-faint); margin-right:6px; }
+.log-list li.ev-gpslost{ color:var(--amber); }
+.log-list li.ev-gpsok{ color:var(--cyan); }
+.log-list li.ev-pothole{ color:var(--red); }
+.log-list::-webkit-scrollbar{ width:6px; }
+.log-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:3px; }
+
+/* ---------- Controls ---------- */
+.controls{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:16px; }
+button{ font-family:var(--font-display); font-size:13px; font-weight:600; letter-spacing:0.2px; border-radius:7px; padding:10px 18px; border:1px solid var(--border); background:#132538; color:var(--text); cursor:pointer; transition:all .15s ease; }
+button:hover{ border-color:var(--cyan); color:var(--cyan); }
+button:active{ transform:translateY(1px); }
+button.primary{ background:linear-gradient(180deg,#1B6E66,#134F49); border-color:var(--cyan-dim); color:#DFFFFA; }
+button.primary:hover{ border-color:var(--cyan); }
+button.warn{ background:linear-gradient(180deg,#6E4B1B,#4F3613); border-color:var(--amber-dim); color:#FFEFD6; }
+button.warn:hover{ border-color:var(--amber); color:#FFEFD6;}
+button.ghost{ background:transparent; }
+button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+.legend{ display:flex; flex-wrap:wrap; gap:14px; margin-left:auto; font-size:10.5px; color:var(--text-faint); }
+.legend span{ display:inline-flex; align-items:center; gap:5px; }
+.legend i{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+
+footer.note{ margin-top:22px; font-size:10.5px; color:var(--text-faint); line-height:1.6; border-top:1px solid var(--border); padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M24 4 L42 11 V22 C42 34 34.5 41.5 24 45 C13.5 41.5 6 34 6 22 V11 Z" fill="#12233A" stroke="#4FD8CB" stroke-width="2"/>
+          <path d="M14 24 C18 18 22 30 26 24 C30 18 34 24 34 24" stroke="#F2A93B" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <circle cx="24" cy="24" r="2.4" fill="#4FD8CB"/>
+        </svg>
+        <div>
+          <h1>NAV<span>-</span>SHIELD</h1>
+          <div class="tagline">"Navigation that never loses its way."</div>
+        </div>
+      </div>
+      <p class="subtitle">Intelligent GNSS-denied navigation — the vehicle drives itself around a test loop. Watch what happens when it enters the tunnel and GPS drops out.</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- STAGE -->
+    <div class="card">
+      <div class="card-head"><span class="dot" id="modeDot"></span><h2>Test track — live position estimate</h2></div>
+      <div class="stage-wrap">
+        <canvas id="stage"></canvas>
+      </div>
+      <div class="status-strip">
+        <div class="status-chip">
+          <div class="label">MODE</div>
+          <div class="value mode-gps" id="modeValue">STANDBY</div>
+        </div>
+        <div class="status-chip">
+          <div class="label">POSITION ERROR (ESTIMATE VS TRUE)</div>
+          <div class="value" id="driftValue">0.0 m</div>
+        </div>
+        <div class="status-chip">
+          <div class="label">LAST CORRECTION</div>
+          <div class="value" id="correctionValue">—</div>
+        </div>
+        <div class="status-chip">
+          <div class="label">LAP DISTANCE</div>
+          <div class="value" id="lapValue">0 m</div>
+        </div>
+      </div>
+      <p class="hint">GPS drops automatically inside the tunnel section each lap. Press <b>Hit Pothole</b> at any time to see the anomaly filter react.</p>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <div class="card">
+        <div class="card-head"><span class="dot" style="background:var(--amber); box-shadow:0 0 8px var(--amber);"></span><h2>Trust weights</h2></div>
+        <div class="card-body">
+          <div class="trust-row">
+            <div class="trow-top"><span class="name">GPS / GNSS</span><span class="pct" id="gpsPct">0%</span></div>
+            <div class="trust-track"><div class="trust-fill" id="gpsBar" style="width:0%; background:var(--cyan);"></div></div>
+          </div>
+          <div class="trust-row">
+            <div class="trow-top"><span class="name">IMU (accel + gyro)</span><span class="pct" id="imuPct">0%</span></div>
+            <div class="trust-track"><div class="trust-fill" id="imuBar" style="width:0%; background:var(--amber);"></div></div>
+          </div>
+          <div class="trust-row">
+            <div class="trow-top"><span class="name">Map matching</span><span class="pct" id="mapPct">0%</span></div>
+            <div class="trust-track"><div class="trust-fill" id="mapBar" style="width:0%; background:#8B7CF6;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="dot" style="background:var(--red); box-shadow:0 0 8px var(--red);"></span><h2>Sensor telemetry</h2></div>
+        <div class="card-body">
+          <div class="sensor-block">
+            <div class="sensor-top"><span class="name">Accelerometer</span><span class="val" id="accelVal">0.00 m/s²</span></div>
+            <canvas class="spark" id="accelSpark"></canvas>
+          </div>
+          <div class="sensor-block">
+            <div class="sensor-top"><span class="name">Gyroscope</span><span class="val" id="gyroVal">0.00 °/s</span></div>
+            <canvas class="spark" id="gyroSpark"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <div class="card-head"><span class="dot" style="background:var(--text-faint); box-shadow:none;"></span><h2>Event log</h2></div>
+        <div class="card-body" style="padding-top:8px;">
+          <ul class="log-list" id="logList"></ul>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div class="controls">
+    <button class="primary" id="btnStart">Start journey</button>
+    <button class="warn" id="btnPothole" disabled>Hit pothole</button>
+    <button class="ghost" id="btnReset">Reset</button>
+    <div class="legend">
+      <span><i style="background:var(--cyan);"></i>GPS fix</span>
+      <span><i style="background:var(--amber);"></i>Dead-reckoning estimate</span>
+      <span><i style="background:#8B7CF6;"></i>Map-matched correction</span>
+      <span><i style="background:var(--red);"></i>Pothole event</span>
+    </div>
+  </div>
+
+  <footer class="note">
+    Prototype note — this is a software simulation of the NAV-SHIELD sensor-fusion logic: a closed test loop, a simulated accelerometer + gyroscope, and a simple map-matching pull toward the road. It's built to demonstrate the <i>algorithm</i> (what the system trusts, and why, as GPS comes and goes) rather than to read real phone hardware. Wiring it to a real device's motion sensors and a live map is the natural next step.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ===================== ROAD GEOMETRY ===================== */
+  // Waypoints authored in a 1000 x 600 logical coordinate space (closed loop).
+  const WAYPOINTS = [
+    {x:150,y:480},{x:112,y:378},{x:120,y:255},{x:172,y:148},
+    {x:300,y:88}, {x:480,y:76}, {x:655,y:104},{x:790,y:196},
+    {x:838,y:322},{x:800,y:444},{x:672,y:504},{x:492,y:522},
+    {x:308,y:508}
+  ];
+  const SEG_PER_SPAN = 26;
+
+  function catmullRom(p0,p1,p2,p3,t){
+    const t2=t*t, t3=t2*t;
+    const x = 0.5*((2*p1.x) + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3);
+    const y = 0.5*((2*p1.y) + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3);
+    return {x,y};
+  }
+
+  function buildDensePath(waypoints, segPerSpan){
+    const n = waypoints.length;
+    const pts = [];
+    for(let i=0;i<n;i++){
+      const p0 = waypoints[(i-1+n)%n];
+      const p1 = waypoints[i];
+      const p2 = waypoints[(i+1)%n];
+      const p3 = waypoints[(i+2)%n];
+      for(let s=0;s<segPerSpan;s++){
+        const t = s/segPerSpan;
+        pts.push(catmullRom(p0,p1,p2,p3,t));
+      }
+    }
+    return pts;
+  }
+
+  const densePath = buildDensePath(WAYPOINTS, SEG_PER_SPAN);
+  const arcLen = [0];
+  for(let i=1;i<densePath.length;i++){
+    const dx = densePath[i].x-densePath[i-1].x, dy = densePath[i].y-densePath[i-1].y;
+    arcLen.push(arcLen[i-1]+Math.hypot(dx,dy));
+  }
+  const closingDist = Math.hypot(densePath[0].x-densePath[densePath.length-1].x, densePath[0].y-densePath[densePath.length-1].y);
+  const TOTAL_LEN = arcLen[arcLen.length-1] + closingDist;
+
+  function getPointAtDistance(d){
+    d = ((d % TOTAL_LEN)+TOTAL_LEN)%TOTAL_LEN;
+    const n = densePath.length;
+    // linear scan (n ~ 338, cheap enough at 60fps)
+    for(let i=0;i<n;i++){
+      const segStart = arcLen[i];
+      const segEnd = (i+1<n) ? arcLen[i+1] : TOTAL_LEN;
+      if(d>=segStart && d<segEnd){
+        const t = (segEnd-segStart) ? (d-segStart)/(segEnd-segStart) : 0;
+        const p0 = densePath[i], p1 = densePath[(i+1)%n];
+        return {
+          x: p0.x+(p1.x-p0.x)*t,
+          y: p0.y+(p1.y-p0.y)*t,
+          heading: Math.atan2(p1.y-p0.y, p1.x-p0.x),
+          index: i
+        };
+      }
+    }
+    return {x:densePath[0].x, y:densePath[0].y, heading:0, index:0};
+  }
+
+  function nearestPointOnPath(pos){
+    let best=null, bestD=Infinity;
+    for(let i=0;i<densePath.length;i++){
+      const dx=densePath[i].x-pos.x, dy=densePath[i].y-pos.y;
+      const d = dx*dx+dy*dy;
+      if(d<bestD){ bestD=d; best=densePath[i]; }
+    }
+    return {x:best.x, y:best.y, dist:Math.sqrt(bestD)};
+  }
+
+  // Tunnel zone as a fraction of the lap
+  const TUNNEL_START = 0.045, TUNNEL_END = 0.235;
+  function inTunnel(frac){ return frac>=TUNNEL_START && frac<TUNNEL_END; }
+
+  function buildTunnelTube(){
+    const samples = 40;
+    const left=[], right=[];
+    const halfW = 20;
+    for(let i=0;i<=samples;i++){
+      const frac = TUNNEL_START + (TUNNEL_END-TUNNEL_START)*(i/samples);
+      const p = getPointAtDistance(frac*TOTAL_LEN);
+      const nx = -Math.sin(p.heading), ny = Math.cos(p.heading);
+      left.push({x:p.x+nx*halfW, y:p.y+ny*halfW});
+      right.push({x:p.x-nx*halfW, y:p.y-ny*halfW});
+    }
+    return left.concat(right.reverse());
+  }
+  const tunnelTube = buildTunnelTube();
+
+  const PIXELS_PER_METER = 6; // logical-space scale for readable "meters" figures
+
+  /* ===================== SIMULATION STATE ===================== */
+  const state = {
+    running:false,
+    trueDist: TUNNEL_START*TOTAL_LEN - 260, // start ~a few seconds before the tunnel
+    speed: 72,           // logical px/s (~12 m/s)
+    gpsAvailable: true,
+    wasInTunnel:false,
+    drPos: null,
+    drHeading: 0,
+    fusedPos: null,
+    trust: {gps:100, imu:85, map:88},
+    trustTarget: {gps:100, imu:85, map:88},
+    accel: 0, gyro: 0,
+    accelHistory: new Array(90).fill(0),
+    gyroHistory: new Array(90).fill(0),
+    imuAnomalyTimer: 0,
+    driftSincePass: 0,
+    maxDriftThisPass: 0,
+    lastCorrection: null,
+    gpsTrail: [],
+    fusedTrail: [],
+    lastTime: null
+  };
+
+  function resetState(){
+    state.running=false;
+    state.trueDist = TUNNEL_START*TOTAL_LEN - 260;
+    state.gpsAvailable = true;
+    state.wasInTunnel = false;
+    const p = getPointAtDistance(state.trueDist);
+    state.drPos = {x:p.x, y:p.y};
+    state.drHeading = p.heading;
+    state.fusedPos = {x:p.x, y:p.y};
+    state.trust = {gps:100, imu:85, map:88};
+    state.trustTarget = {gps:100, imu:85, map:88};
+    state.accel=0; state.gyro=0;
+    state.accelHistory.fill(0);
+    state.gyroHistory.fill(0);
+    state.imuAnomalyTimer = 0;
+    state.driftSincePass = 0;
+    state.maxDriftThisPass = 0;
+    state.lastCorrection = null;
+    state.gpsTrail = [];
+    state.fusedTrail = [];
+    state.lastTime = null;
+    logList.innerHTML='';
+    log('System idle. Press "Start journey" to begin.', 'plain');
+    modeValue.textContent='STANDBY';
+    modeValue.className='value mode-gps';
+    correctionValue.textContent='—';
+    driftValue.textContent='0.0 m';
+    lapValue.textContent='0 m';
+    btnPothole.disabled = true;
+    render(true);
+  }
+
+  /* ===================== DOM ===================== */
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const accelSpark = document.getElementById('accelSpark');
+  const gyroSpark = document.getElementById('gyroSpark');
+  const accelCtx = accelSpark.getContext('2d');
+  const gyroCtx = gyroSpark.getContext('2d');
+
+  const gpsBar=document.getElementById('gpsBar'), imuBar=document.getElementById('imuBar'), mapBar=document.getElementById('mapBar');
+  const gpsPct=document.getElementById('gpsPct'), imuPct=document.getElementById('imuPct'), mapPct=document.getElementById('mapPct');
+  const accelVal=document.getElementById('accelVal'), gyroVal=document.getElementById('gyroVal');
+  const modeValue=document.getElementById('modeValue'), modeDot=document.getElementById('modeDot');
+  const driftValue=document.getElementById('driftValue'), correctionValue=document.getElementById('correctionValue'), lapValue=document.getElementById('lapValue');
+  const logList=document.getElementById('logList');
+  const btnStart=document.getElementById('btnStart'), btnPothole=document.getElementById('btnPothole'), btnReset=document.getElementById('btnReset');
+
+  let simClock = 0;
+  function log(msg, kind){
+    simClock += 0;
+    const t = fmtClock();
+    const li = document.createElement('li');
+    if(kind && kind!=='plain') li.className = 'ev-'+kind;
+    li.innerHTML = '<span class="t">'+t+'</span>'+msg;
+    logList.insertBefore(li, logList.firstChild);
+    while(logList.children.length>60) logList.removeChild(logList.lastChild);
+  }
+  let startWallTime = null;
+  function fmtClock(){
+    if(startWallTime===null) return '00:00';
+    const s = Math.max(0, (performance.now()-startWallTime)/1000);
+    const m = Math.floor(s/60), ss = Math.floor(s%60);
+    return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+  }
+
+  /* ===================== CANVAS SIZING ===================== */
+  function resizeCanvas(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width*dpr);
+    canvas.height = Math.round(rect.height*dpr);
+    canvas.scaleX = (rect.width*dpr)/1000;
+    canvas.scaleY = (rect.height*dpr)/600;
+    accelSpark.width = accelSpark.clientWidth*dpr; accelSpark.height = accelSpark.clientHeight*dpr;
+    gyroSpark.width = gyroSpark.clientWidth*dpr; gyroSpark.height = gyroSpark.clientHeight*dpr;
+    render(true);
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  /* ===================== SIMULATION STEP ===================== */
+  let potholeTimer = 0;
+  function triggerPothole(){
+    if(!state.running) return;
+    potholeTimer = 0.35;
+    state.trustTarget.imu = 22;
+    state.imuAnomalyTimer = 1.8;
+    log('⚠ Pothole impact — accelerometer spike detected. AI classifier flags it as terrain noise (not vehicle motion) and excludes it from the position update. IMU trust reduced briefly.', 'pothole');
+  }
+
+  function step(dt){
+    dt = Math.min(dt, 0.06);
+
+    // --- true vehicle motion ---
+    const speedNoise = Math.sin(performance.now()/1300)*4;
+    state.speed = 72 + speedNoise;
+    state.trueDist += state.speed*dt;
+    const truePt = getPointAtDistance(state.trueDist);
+    const frac = (((state.trueDist % TOTAL_LEN)+TOTAL_LEN)%TOTAL_LEN)/TOTAL_LEN;
+
+    // --- tunnel / GPS availability ---
+    const nowInTunnel = inTunnel(frac);
+    if(nowInTunnel && !state.wasInTunnel){
+      state.gpsAvailable = false;
+      state.driftSincePass = 0;
+      state.maxDriftThisPass = 0;
+      log('🚇 Entering tunnel — GNSS signal lost. Switching to dead-reckoning (accelerometer + gyroscope + map matching).', 'gpslost');
+      state.drPos = {x:state.fusedPos.x, y:state.fusedPos.y};
+      state.drHeading = truePt.heading + (Math.random()-0.5)*0.05;
+    }
+    if(!nowInTunnel && state.wasInTunnel){
+      state.gpsAvailable = true;
+      const driftM = (state.maxDriftThisPass/PIXELS_PER_METER).toFixed(1);
+      log('📡 GNSS reacquired — correcting estimated position (peak drift this pass: '+driftM+' m).', 'gpsok');
+      state.lastCorrection = driftM+' m';
+      correctionValue.textContent = driftM+' m';
+    }
+    state.wasInTunnel = nowInTunnel;
+
+    // --- simulated sensor readings ---
+    const baseAccel = speedNoise*0.15;
+    let accelReading = baseAccel + (Math.random()-0.5)*0.5;
+    let anomalyActive = false;
+    if(potholeTimer>0){
+      potholeTimer -= dt;
+      accelReading += 6.5 * (potholeTimer>0.15 ? 1 : potholeTimer/0.15);
+      anomalyActive = true;
+    }
+    const trueTurnRate = (truePt.heading - (state._lastHeading===undefined?truePt.heading:state._lastHeading)) / dt;
+    state._lastHeading = truePt.heading;
+    let gyroReading = (trueTurnRate*57.2958) + (Math.random()-0.5)*3;
+    state.accel = accelReading;
+    state.gyro = gyroReading;
+    state.accelHistory.push(accelReading); state.accelHistory.shift();
+    state.gyroHistory.push(gyroReading); state.gyroHistory.shift();
+
+    // --- position estimation ---
+    if(state.gpsAvailable){
+      const noiseX=(Math.random()-0.5)*3, noiseY=(Math.random()-0.5)*3;
+      state.drPos = {x:truePt.x+noiseX, y:truePt.y+noiseY};
+      state.drHeading = truePt.heading;
+      state.fusedPos = {x:state.drPos.x, y:state.drPos.y};
+      state.gpsTrail.push({x:truePt.x+noiseX, y:truePt.y+noiseY});
+      if(state.gpsTrail.length>260) state.gpsTrail.shift();
+    } else {
+      // integrate gyro (with slow bias) + speed to move the DR estimate
+      const gyroBias = 0.6; // deg/s systematic bias -> causes heading drift
+      state.drHeading += ((trueTurnRate*57.2958)+gyroBias)/57.2958*dt + (Math.random()-0.5)*0.01;
+      const moveDist = state.speed*dt;
+      state.drPos.x += Math.cos(state.drHeading)*moveDist + (Math.random()-0.5)*1.4;
+      state.drPos.y += Math.sin(state.drHeading)*moveDist + (Math.random()-0.5)*1.4;
+
+      // map matching pulls the estimate back toward the road
+      const nearest = nearestPointOnPath(state.drPos);
+      const mapPull = 0.12; // fraction pulled toward the road per frame
+      const mapMatched = {
+        x: state.drPos.x + (nearest.x-state.drPos.x)*mapPull,
+        y: state.drPos.y + (nearest.y-state.drPos.y)*mapPull
+      };
+      state.fusedPos = mapMatched;
+      state.drPos = mapMatched; // carry corrected estimate forward
+    }
+
+    // drift tracking
+    const driftPx = Math.hypot(state.fusedPos.x-truePt.x, state.fusedPos.y-truePt.y);
+    state.driftSincePass = driftPx;
+    state.maxDriftThisPass = Math.max(state.maxDriftThisPass, driftPx);
+    driftValue.textContent = (driftPx/PIXELS_PER_METER).toFixed(1)+' m';
+    lapValue.textContent = Math.round(state.trueDist/PIXELS_PER_METER)+' m';
+
+    state.fusedTrail.push({x:state.fusedPos.x, y:state.fusedPos.y, dr: !state.gpsAvailable});
+    if(state.fusedTrail.length>260) state.fusedTrail.shift();
+
+    // --- trust weights ---
+    state.trustTarget.gps = state.gpsAvailable ? 96 : 0;
+    if(state.imuAnomalyTimer>0){
+      state.imuAnomalyTimer -= dt;
+      if(state.imuAnomalyTimer<=0) state.trustTarget.imu = state.gpsAvailable?85:78;
+    } else {
+      state.trustTarget.imu = state.gpsAvailable ? 85 : 78;
+    }
+    state.trustTarget.map = state.gpsAvailable ? 70 : 90;
+
+    state.trust.gps += (state.trustTarget.gps-state.trust.gps)*Math.min(1,dt*4);
+    state.trust.imu += (state.trustTarget.imu-state.trust.imu)*Math.min(1,dt*3);
+    state.trust.map += (state.trustTarget.map-state.trust.map)*Math.min(1,dt*3);
+
+    // mode label
+    if(!state.gpsAvailable){
+      modeValue.textContent='DEAD RECKONING';
+      modeValue.className='value mode-dr';
+      modeDot.style.background='var(--amber)'; modeDot.style.boxShadow='0 0 8px var(--amber)';
+    } else {
+      modeValue.textContent='GPS LOCK';
+      modeValue.className='value mode-gps';
+      modeDot.style.background='var(--cyan)'; modeDot.style.boxShadow='0 0 8px var(--cyan)';
+    }
+
+    updateUI(anomalyActive, truePt);
+  }
+
+  function updateUI(anomalyActive, truePt){
+    gpsBar.style.width = state.trust.gps.toFixed(0)+'%'; gpsPct.textContent=Math.round(state.trust.gps)+'%';
+    imuBar.style.width = state.trust.imu.toFixed(0)+'%'; imuPct.textContent=Math.round(state.trust.imu)+'%';
+    mapBar.style.width = state.trust.map.toFixed(0)+'%'; mapPct.textContent=Math.round(state.trust.map)+'%';
+    imuBar.style.background = anomalyActive ? 'var(--red)' : 'var(--amber)';
+
+    accelVal.textContent = state.accel.toFixed(2)+' m/s²';
+    gyroVal.textContent = state.gyro.toFixed(2)+' °/s';
+  }
+
+  /* ===================== RENDER ===================== */
+  function drawSpark(c, ctx2, data, color){
+    const w=c.width, h=c.height;
+    ctx2.clearRect(0,0,w,h);
+    const max = Math.max(2, ...data.map(v=>Math.abs(v)));
+    ctx2.beginPath();
+    data.forEach((v,i)=>{
+      const x = (i/(data.length-1))*w;
+      const y = h/2 - (v/max)*(h/2-3);
+      if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y);
+    });
+    ctx2.strokeStyle=color; ctx2.lineWidth=1.6*(w/140); ctx2.stroke();
+    ctx2.strokeStyle='rgba(255,255,255,0.08)'; ctx2.beginPath(); ctx2.moveTo(0,h/2); ctx2.lineTo(w,h/2); ctx2.stroke();
+  }
+
+  function render(){
+    const sx = canvas.scaleX||1, sy = canvas.scaleY||1;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.setTransform(sx,0,0,sy,0,0);
+
+    // background grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    for(let x=0;x<=1000;x+=50){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,600); ctx.stroke(); }
+    for(let y=0;y<=600;y+=50){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(1000,y); ctx.stroke(); }
+
+    // road
+    ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.beginPath();
+    densePath.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+    ctx.closePath();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--road-edge');
+    ctx.lineWidth = 19; ctx.stroke();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--road');
+    ctx.lineWidth = 15; ctx.stroke();
+
+    // centerline
+    ctx.setLineDash([6,10]);
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1.4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // tunnel tube
+    ctx.beginPath();
+    tunnelTube.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(3,8,16,0.86)';
+    ctx.fill();
+    ctx.strokeStyle = state.wasInTunnel ? 'rgba(242,169,59,0.85)' : 'rgba(79,216,203,0.35)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // tunnel label
+    const midT = getPointAtDistance(((TUNNEL_START+TUNNEL_END)/2)*TOTAL_LEN);
+    ctx.fillStyle='rgba(230,240,250,0.55)';
+    ctx.font='600 11px "JetBrains Mono", monospace';
+    ctx.textAlign='center';
+    ctx.fillText('TUNNEL — NO GNSS', midT.x, midT.y-26);
+
+    // GPS trail
+    if(state.gpsTrail.length>1){
+      ctx.beginPath();
+      state.gpsTrail.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+      ctx.strokeStyle='rgba(79,216,203,0.75)'; ctx.lineWidth=2.4; ctx.stroke();
+    }
+    // fused trail (amber where dead-reckoning, purple tint blended via single stroke, color per-segment)
+    if(state.fusedTrail.length>1){
+      for(let i=1;i<state.fusedTrail.length;i++){
+        const a=state.fusedTrail[i-1], b=state.fusedTrail[i];
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+        ctx.strokeStyle = b.dr ? 'rgba(242,169,59,0.85)' : 'rgba(139,124,246,0.55)';
+        ctx.lineWidth = 2.4; ctx.stroke();
+      }
+    }
+
+    if(state.drPos){
+      const truePt = getPointAtDistance(state.trueDist);
+      // true vehicle marker (ghost, small)
+      ctx.save();
+      ctx.translate(truePt.x, truePt.y); ctx.rotate(truePt.heading);
+      ctx.beginPath(); ctx.moveTo(7,0); ctx.lineTo(-5,4.5); ctx.lineTo(-5,-4.5); ctx.closePath();
+      ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.fill();
+      ctx.restore();
+
+      // fused/estimated marker (the "car" the system believes in)
+      const heading = state.gpsAvailable ? truePt.heading : state.drHeading;
+      ctx.save();
+      ctx.translate(state.fusedPos.x, state.fusedPos.y); ctx.rotate(heading);
+      const carColor = state.gpsAvailable ? '#4FD8CB' : '#F2A93B';
+      ctx.beginPath(); ctx.moveTo(13,0); ctx.lineTo(-9,8); ctx.lineTo(-9,-8); ctx.closePath();
+      ctx.fillStyle=carColor; ctx.shadowColor=carColor; ctx.shadowBlur=14; ctx.fill();
+      ctx.restore();
+    }
+
+    // pothole flash
+    if(potholeTimer>0){
+      const truePt = getPointAtDistance(state.trueDist);
+      ctx.beginPath();
+      ctx.arc(truePt.x, truePt.y, 18*(1-potholeTimer/0.35)+6, 0, Math.PI*2);
+      ctx.strokeStyle='rgba(235,99,83,'+(potholeTimer/0.35)+')';
+      ctx.lineWidth=3; ctx.stroke();
+    }
+
+    drawSpark(accelSpark, accelCtx, state.accelHistory, '#EB6353');
+    drawSpark(gyroSpark, gyroCtx, state.gyroHistory, '#8B7CF6');
+  }
+
+  /* ===================== LOOP ===================== */
+  function frame(ts){
+    if(state.lastTime===null) state.lastTime = ts;
+    const dt = (ts-state.lastTime)/1000;
+    state.lastTime = ts;
+    if(state.running){
+      step(dt);
+    } else {
+      drawSpark(accelSpark, accelCtx, state.accelHistory, '#EB6353');
+      drawSpark(gyroSpark, gyroCtx, state.gyroHistory, '#8B7CF6');
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  /* ===================== CONTROLS ===================== */
+  btnStart.addEventListener('click', ()=>{
+    if(!state.running){
+      state.running = true;
+      if(startWallTime===null) startWallTime = performance.now();
+      btnStart.textContent='Pause';
+      btnPothole.disabled = false;
+      log('Journey started. Vehicle departing along the test loop.', 'plain');
+    } else {
+      state.running = false;
+      btnStart.textContent='Resume';
+      log('Journey paused.', 'plain');
+    }
+  });
+
+  btnPothole.addEventListener('click', triggerPothole);
+  btnReset.addEventListener('click', ()=>{
+    startWallTime = null;
+    btnStart.textContent='Start journey';
+    resetState();
+  });
+
+  /* ===================== INIT ===================== */
+  resetState();
+  resizeCanvas();
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .catch(err => console.error("NAV-SHIELD service worker registration failed:", err));
+  });
+}
+</script>
+</body>
+</html>
