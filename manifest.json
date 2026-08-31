@@ -1,26 +1,15 @@
 {
-  "name": "NAV-SHIELD — GNSS-Denied Navigation",
-  "short_name": "NAV-SHIELD",
-  "description": "NAV-SHIELD software prototype for GNSS-denied navigation and sensor-fusion simulation.",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "any",
-  "background_color": "#0B1626",
-  "theme_color": "#0B1626",
-  "categories": ["navigation", "utilities", "education"],
-  "icons": [
-    {
-      "src": "icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+  "name":"NAV-SHIELD — GNSS-Denied Navigation",
+  "short_name":"NAV-SHIELD",
+  "description":"GNSS-denied navigation prototype with real phone motion sensors and GPS telemetry.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "orientation":"any",
+  "background_color":"#0B1626",
+  "theme_color":"#0B1626",
+  "icons":[
+    {"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
   ]
 }

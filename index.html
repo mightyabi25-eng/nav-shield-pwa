@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NAV-SHIELD — GNSS-Denied Navigation Prototype</title>
-<link rel="manifest" href="manifest.json">
+<title>NAV-SHIELD — GNSS-Denied Navigation</title>
+<link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0B1626">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NAV-SHIELD">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
   --bg:#0B1626;
@@ -215,8 +215,14 @@ footer.note{ margin-top:22px; font-size:10.5px; color:var(--text-faint); line-he
 
   <div class="controls">
     <button class="primary" id="btnStart">Start journey</button>
+    <button class="primary" id="btnSensors">Enable phone sensors</button>
+    <button class="ghost" id="btnInstall" hidden>Install NAV-SHIELD</button>
     <button class="warn" id="btnPothole" disabled>Hit pothole</button>
     <button class="ghost" id="btnReset">Reset</button>
+    <div id="deviceStatus" style="width:100%;font-size:10.5px;color:var(--text-faint);margin-top:2px;">
+      Phone sensors: <b id="sensorStatus" style="color:var(--text-dim);">not enabled</b>
+      &nbsp;•&nbsp; Phone GPS: <b id="phoneGpsStatus" style="color:var(--text-dim);">starting…</b>
+    </div>
     <div class="legend">
       <span><i style="background:var(--cyan);"></i>GPS fix</span>
       <span><i style="background:var(--amber);"></i>Dead-reckoning estimate</span>
@@ -712,15 +718,107 @@ footer.note{ margin-top:22px; font-size:10.5px; color:var(--text-faint); line-he
   resetState();
   resizeCanvas();
   requestAnimationFrame(frame);
+  window.__navShieldState = state;
+  window.__navShieldLog = log;
+  window.__navShieldReady = true;
+})();
+</script>
+
+<script>
+(function(){
+  "use strict";
+  let deferredInstallPrompt=null;
+  const installBtn=document.getElementById("btnInstall");
+  const sensorBtn=document.getElementById("btnSensors");
+  const sensorStatus=document.getElementById("sensorStatus");
+  const phoneGpsStatus=document.getElementById("phoneGpsStatus");
+
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault(); deferredInstallPrompt=e;
+    if(installBtn) installBtn.hidden=false;
+  });
+  if(installBtn) installBtn.addEventListener("click",async()=>{
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt=null; installBtn.hidden=true;
+  });
+  window.addEventListener("appinstalled",()=>{if(installBtn)installBtn.hidden=true;});
+
+  function setSensor(text,color){
+    sensorStatus.textContent=text;
+    sensorStatus.style.color=color||"var(--text-dim)";
+  }
+
+  function motionHandler(e){
+    const a=e.acceleration || e.accelerationIncludingGravity || {};
+    const r=e.rotationRate || {};
+    const ax=Number(a.x)||0, ay=Number(a.y)||0, az=Number(a.z)||0;
+    const gx=Number(r.alpha)||Number(r.z)||0;
+    const gy=Number(r.beta)||Number(r.x)||0;
+    const gz=Number(r.gamma)||Number(r.y)||0;
+    const am=Math.hypot(ax,ay,az), gm=Math.hypot(gx,gy,gz);
+
+    const av=document.getElementById("accelVal"), gv=document.getElementById("gyroVal");
+    if(av) av.textContent=am.toFixed(2)+" m/s²";
+    if(gv) gv.textContent=gm.toFixed(2)+" °/s";
+
+    if(window.__navShieldState){
+      const s=window.__navShieldState;
+      s.accel=am; s.gyro=gm;
+      s.accelHistory.push(am); s.accelHistory.shift();
+      s.gyroHistory.push(gm); s.gyroHistory.shift();
+    }
+  }
+
+  async function enableSensors(){
+    try{
+      if(typeof DeviceMotionEvent==="undefined"){
+        setSensor("not supported","var(--red)"); return;
+      }
+      if(typeof DeviceMotionEvent.requestPermission==="function"){
+        const p=await DeviceMotionEvent.requestPermission();
+        if(p!=="granted"){setSensor("permission denied","var(--red)");return;}
+      }
+      if(typeof DeviceOrientationEvent!=="undefined" &&
+         typeof DeviceOrientationEvent.requestPermission==="function"){
+        const p=await DeviceOrientationEvent.requestPermission();
+        if(p!=="granted"){setSensor("orientation denied","var(--red)");return;}
+      }
+      window.addEventListener("devicemotion",motionHandler,{passive:true});
+      setSensor("ACTIVE","var(--cyan)");
+      if(window.__navShieldLog) window.__navShieldLog("📱 Real phone accelerometer + gyroscope enabled.","gpsok");
+    }catch(err){
+      console.error(err); setSensor("error / blocked","var(--red)");
+    }
+  }
+  if(sensorBtn) sensorBtn.addEventListener("click",enableSensors);
+
+  if(!("geolocation" in navigator)){
+    phoneGpsStatus.textContent="not supported";
+    phoneGpsStatus.style.color="var(--red)";
+  }else{
+    navigator.geolocation.watchPosition(pos=>{
+      phoneGpsStatus.textContent="FIX ±"+Math.round(pos.coords.accuracy)+" m";
+      phoneGpsStatus.style.color="var(--cyan)";
+      window.__navShieldPhoneGPS={
+        latitude:pos.coords.latitude,longitude:pos.coords.longitude,
+        accuracy:pos.coords.accuracy,speed:pos.coords.speed,
+        heading:pos.coords.heading,timestamp:pos.timestamp
+      };
+    },err=>{
+      phoneGpsStatus.textContent="unavailable ("+err.code+")";
+      phoneGpsStatus.style.color="var(--amber)";
+    },{enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+  }
 })();
 </script>
 <script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js")
-      .catch(err => console.error("NAV-SHIELD service worker registration failed:", err));
-  });
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js")
+    .catch(err=>console.error("Service worker:",err)));
 }
 </script>
+
 </body>
 </html>
