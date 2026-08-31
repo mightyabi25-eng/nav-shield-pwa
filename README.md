@@ -1,4 +1,4 @@
-# NAV-SHIELD V3
+# NAV-SHIELD V3.2
 
 V3 upgrades the V2 prototype from a simulated test track to a live phone navigation interface.
 
