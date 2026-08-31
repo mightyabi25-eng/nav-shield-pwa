@@ -1,7 +1,7 @@
 {
-  "name":"NAV-SHIELD — GNSS-Denied Navigation",
-  "short_name":"NAV-SHIELD",
-  "description":"GNSS-denied navigation prototype with real phone motion sensors and GPS telemetry.",
+  "name":"NAV-SHIELD V3 — Live GNSS-Denied Navigation",
+  "short_name":"NAV-SHIELD V3",
+  "description":"Live phone GNSS, accelerometer and gyroscope telemetry with GNSS-loss dead reckoning.",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
